@@ -59,6 +59,12 @@ class AssetService {
      */
     protected $objectManager;
 
+	/**
+	 * @var \TYPO3\Flow\Security\Context
+	 * @Flow\Inject
+	 */
+	protected $securityContext;
+
     public function __construct(\TYPO3\Flow\Object\ObjectManager $objectManager) {
         $packageManager = $objectManager->get("TYPO3\Flow\Package\PackageManagerInterface");
         $lessphpPackage = $packageManager->getPackage("leafo.lessphp");
@@ -79,7 +85,7 @@ class AssetService {
         if (isset($bundle["Filters"]))
             $filters = $this->createFiltersIntances($bundle["Filters"]);
 
-        $preCompileMerge = isset($bundle["PreCompileMerge"]) ? $bundle["PreCompileMerge"] : false;
+        $preCompileMerge = isset($bundle["PreCompileMerge"]) ? $bundle["PreCompileMerge"] : FALSE;
 
         if ($preCompileMerge) {
 
@@ -115,6 +121,31 @@ class AssetService {
         return $this->configurationManager->getConfiguration(self::CONFIGURATION_TYPE_ASSETS, $path);
     }
 
+	/**
+	 * @param array $conf
+	 * @return array
+	 */
+	protected function processResourcePath(array $conf) {
+
+		$getFileResource = function(&$file, $key) use (&$conf) {
+			if (substr($file, 0, 11 ) !== 'resource://') {
+				/** @var $resource \TYPO3\Flow\Resource\Resource */
+				$resource = \TYPO3\Flow\Reflection\ObjectAccess::getPropertyPath($this->securityContext, str_replace('current.securityContext.', '', $file));
+				if ($resource !== NULL) {
+					$file = 'resource://' . (string)$resource;
+				} else {
+					unset($conf['Files'][$key]);
+				}
+			}
+		};
+
+		if (isset($conf['Files']) && is_array($conf['Files'])) {
+			array_walk($conf['Files'], $getFileResource, $conf['Files']);
+		}
+
+		return $conf;
+	}
+
     /**
      * @param $bundle
      * @param $basePath
@@ -122,12 +153,14 @@ class AssetService {
      * @return array
      */
     public function getBundle($bundle, $basePath, $overrideSettings = array()) {
-        $path = $basePath . "." . $bundle;
         $bundles = $this->configurationManager->getConfiguration(self::CONFIGURATION_TYPE_ASSETS, $basePath);
         
         $conf = $bundles[$bundle];
         $conf = array_merge($conf, $overrideSettings);
-        if (isset($conf["Dependencies"])) {
+
+		$conf = $this->processResourcePath($conf);
+
+		if (isset($conf["Dependencies"])) {
             foreach ($conf["Dependencies"] as $dependency) {
                 $conf = array_merge_recursive($this->getBundle($dependency, $basePath), $conf);
             }
@@ -135,8 +168,7 @@ class AssetService {
         if (isset($conf["Alterations"])) {
             foreach ($conf["Alterations"] as $key => $alterations) {
                 if (is_array($alterations)) {
-
-                    foreach ($alterations as $type => $files) {
+					foreach ($alterations as $type => $files) {
                         $position = array_search($key, $conf["Files"]);
                         switch ($type) {
                             case 'After':
@@ -160,7 +192,7 @@ class AssetService {
             }
         }
 
-        return $conf;
+		return $conf;
     }
 
     /**
