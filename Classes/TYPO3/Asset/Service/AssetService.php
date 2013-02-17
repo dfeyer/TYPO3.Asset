@@ -35,7 +35,7 @@ class AssetService {
     protected $requiredJs = array();
 
     /**
-     * @var \TYPO3\Asset\Configuration\ConfigurationManager
+     * @var \TYPO3\Flow\Configuration\ConfigurationManager
      * @Flow\Inject
      */
     protected $configurationManager;
