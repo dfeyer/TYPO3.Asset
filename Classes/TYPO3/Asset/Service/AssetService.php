@@ -130,14 +130,19 @@ class AssetService {
 		$getFileResource = function(&$file, $key) use (&$conf) {
 			if (substr($file, 0, 11 ) !== 'resource://') {
 				/** @var $resource \TYPO3\Flow\Resource\Resource */
-				$resource = \TYPO3\Flow\Reflection\ObjectAccess::getPropertyPath($this->securityContext, str_replace('current.securityContext.', '', $file));
-				if ($resource !== NULL) {
-					$file = 'resource://' . (string)$resource;
-				} else {
+				try {
+					$resource = \TYPO3\Flow\Reflection\ObjectAccess::getPropertyPath($this->securityContext, str_replace('current.securityContext.', '', $file));
+					if ($resource !== NULL) {
+						$file = 'resource://' . (string)$resource;
+					} else {
+						unset($conf['Files'][$key]);
+					}
+				} catch (\Ttree\Medialib\Core\Exception\DomainNotFoundException $e) {
 					unset($conf['Files'][$key]);
 				}
 			}
 		};
+
 
 		if (isset($conf['Files']) && is_array($conf['Files'])) {
 			array_walk($conf['Files'], $getFileResource, $conf['Files']);
