@@ -82,6 +82,11 @@ class AssetReference implements \Assetic\Asset\AssetInterface {
         return $this->callAsset(__FUNCTION__);
     }
 
+	public function getSourceDirectory()
+	{
+		return $this->callAsset(__FUNCTION__);
+	}
+
     public function getTargetPath()
     {
         return $this->callAsset(__FUNCTION__);
