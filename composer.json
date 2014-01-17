@@ -2,7 +2,6 @@
 	"name":"typo3/asset",
 	"type":"typo3-flow-package",
 	"description":"Assetic integration for TYPO3 Flow",
-	"version":"1.0",
 	"require": {
 		"typo3/flow": "*",
 		"leafo/lessphp": "*",
