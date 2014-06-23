@@ -11,6 +11,7 @@ namespace TYPO3\Asset\ViewHelpers\Bundle;
  * The TYPO3 project - inspiring people to share!                         *
  *                                                                        */
 
+use TYPO3\Asset\Service\AssetService;
 use TYPO3\Flow\Annotations as Flow;
 
 /**
@@ -19,7 +20,7 @@ use TYPO3\Flow\Annotations as Flow;
  */
 class CssViewHelper extends \TYPO3\Fluid\Core\ViewHelper\AbstractTagBasedViewHelper {
 	/**
-	 * @var TYPO3\Asset\Service\AssetService
+	 * @var AssetService
 	 * @Flow\Inject
 	 */
 	protected $assetService;

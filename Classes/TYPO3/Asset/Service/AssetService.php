@@ -17,6 +17,11 @@ use Assetic\Asset\AssetCollection;
 use Assetic\Filter\LessphpFilter;
 use TYPO3\Asset\Asset\AssetManager;
 use Assetic\Asset\AssetReference;
+use TYPO3\Flow\Configuration\ConfigurationManager;
+use TYPO3\Flow\Object\ObjectManagerInterface;
+use TYPO3\Flow\Persistence\PersistenceManagerInterface;
+use TYPO3\Flow\Resource\Publishing\ResourcePublisher;
+use TYPO3\Flow\Resource\ResourceManager;
 
 /**
  * A Service which provides further information about a given locale
@@ -35,25 +40,31 @@ class AssetService {
     protected $requiredJs = array();
 
     /**
-     * @var \TYPO3\Flow\Configuration\ConfigurationManager
+     * @var ConfigurationManager
      * @Flow\Inject
      */
     protected $configurationManager;
 
     /**
-     * @var \TYPO3\Flow\Resource\ResourceManager
+     * @var ResourceManager
      * @Flow\Inject
      */
     protected $resourceManager;
 
     /**
-     * @var \TYPO3\Flow\Resource\Publishing\ResourcePublisher
+     * @var ResourcePublisher
      * @Flow\Inject
      */
     protected $resourcePublisher;
 
+	/**
+	 * @Flow\Inject
+	 * @var PersistenceManagerInterface
+	 */
+	protected $persistenceManager;
+
     /**
-     * @var \TYPO3\Flow\Object\ObjectManagerInterface
+     * @var ObjectManagerInterface
      * @author Marc Neuhaus <apocalip@gmail.com>
      * @Flow\Inject
      */
@@ -261,6 +272,8 @@ class AssetService {
      */
     public function publish($content, $filename) {
         $resource = $this->resourceManager->createResourceFromContent($content, $filename);
+		$this->persistenceManager->whitelistObject($resource);
+		$this->persistenceManager->whitelistObject($resource->getResourcePointer());
         return $this->resourcePublisher->publishPersistentResource($resource);
     }
 
