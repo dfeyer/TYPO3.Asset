@@ -20,6 +20,7 @@ use Assetic\Asset\AssetReference;
 use TYPO3\Flow\Configuration\ConfigurationManager;
 use TYPO3\Flow\Object\ObjectManagerInterface;
 use TYPO3\Flow\Persistence\PersistenceManagerInterface;
+use TYPO3\Flow\Reflection\ObjectAccess;
 use TYPO3\Flow\Resource\Publishing\ResourcePublisher;
 use TYPO3\Flow\Resource\ResourceManager;
 
@@ -141,14 +142,10 @@ class AssetService {
 		$getFileResource = function(&$file, $key) use (&$conf) {
 			if (substr($file, 0, 11 ) !== 'resource://') {
 				/** @var $resource \TYPO3\Flow\Resource\Resource */
-				try {
-					$resource = \TYPO3\Flow\Reflection\ObjectAccess::getPropertyPath($this->securityContext, str_replace('current.securityContext.', '', $file));
-					if ($resource !== NULL) {
-						$file = 'resource://' . (string)$resource;
-					} else {
-						unset($conf['Files'][$key]);
-					}
-				} catch (\Ttree\Medialib\Core\Exception\DomainNotFoundException $e) {
+				$resource = ObjectAccess::getPropertyPath($this->securityContext, str_replace('current.securityContext.', '', $file));
+				if ($resource !== NULL) {
+					$file = 'resource://' . (string)$resource;
+				} else {
 					unset($conf['Files'][$key]);
 				}
 			}
