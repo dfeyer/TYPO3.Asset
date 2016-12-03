@@ -11,17 +11,17 @@ namespace TYPO3\Asset\Service;
  * The TYPO3 project - inspiring people to share!                         *
  *                                                                        */
 
-use TYPO3\Flow\Annotations as Flow;
-
 use Assetic\Asset\AssetCollection;
-use Assetic\Filter\LessphpFilter;
-use TYPO3\Asset\Asset\AssetManager;
-use Assetic\Asset\AssetReference;
+use Assetic\Asset\FileAsset;
+use Ttree\Medialib\Core\Exception\DomainNotFoundException;
+use TYPO3\Asset\Asset\MergedAsset;
+use TYPO3\Flow\Annotations as Flow;
 use TYPO3\Flow\Configuration\ConfigurationManager;
+use TYPO3\Flow\Object\ObjectManager;
 use TYPO3\Flow\Object\ObjectManagerInterface;
+use TYPO3\Flow\Package\PackageManagerInterface;
 use TYPO3\Flow\Persistence\PersistenceManagerInterface;
 use TYPO3\Flow\Reflection\ObjectAccess;
-use TYPO3\Flow\Resource\Publishing\ResourcePublisher;
 use TYPO3\Flow\Resource\ResourceManager;
 
 /**
@@ -31,7 +31,8 @@ use TYPO3\Flow\Resource\ResourceManager;
  * @Flow\Scope("singleton")
  * @api
  */
-class AssetService {
+class AssetService
+{
     const CONFIGURATION_TYPE_ASSETS = 'Assets';
 
     /**
@@ -47,41 +48,35 @@ class AssetService {
     protected $configurationManager;
 
     /**
-     * @var ResourceManager
      * @Flow\Inject
+     * @var ResourceManager
      */
     protected $resourceManager;
 
     /**
-     * @var ResourcePublisher
+     * @var PersistenceManagerInterface
      * @Flow\Inject
      */
-    protected $resourcePublisher;
-
-	/**
-	 * @Flow\Inject
-	 * @var PersistenceManagerInterface
-	 */
-	protected $persistenceManager;
+    protected $persistenceManager;
 
     /**
      * @var ObjectManagerInterface
-     * @author Marc Neuhaus <apocalip@gmail.com>
      * @Flow\Inject
      */
     protected $objectManager;
 
-	/**
-	 * @var \TYPO3\Flow\Security\Context
-	 * @Flow\Inject
-	 */
-	protected $securityContext;
+    /**
+     * @var \TYPO3\Flow\Security\Context
+     * @Flow\Inject
+     */
+    protected $securityContext;
 
-    public function __construct(\TYPO3\Flow\Object\ObjectManager $objectManager) {
-        $packageManager = $objectManager->get("TYPO3\Flow\Package\PackageManagerInterface");
-        $lessphpPackage = $packageManager->getPackage("leafo.lessphp");
+    public function __construct(ObjectManager $objectManager)
+    {
+        $packageManager = $objectManager->get(PackageManagerInterface::class);
+        $lessphpPackage = $packageManager->getPackage('leafo.lessphp');
         $lessphpPath = $lessphpPackage->getPackagePath();
-        require_once($lessphpPath . "lessc.inc.php");
+        require_once($lessphpPath . 'lessc.inc.php');
     }
 
     /**
@@ -90,28 +85,29 @@ class AssetService {
      * @param array $bundle
      * @return array
      */
-    public function compileAssets($name, $namespace, $bundle = array()) {
+    public function compileAssets($name, $namespace, $bundle = array())
+    {
         $bundle = $this->getBundle($name, 'Bundles.' . $namespace, $bundle);
 
         $filters = array();
-        if (isset($bundle["Filters"]))
-            $filters = $this->createFiltersIntances($bundle["Filters"]);
+        if (isset($bundle['Filters']))
+            $filters = $this->createFiltersIntances($bundle['Filters']);
 
-        $preCompileMerge = isset($bundle["PreCompileMerge"]) ? $bundle["PreCompileMerge"] : FALSE;
+        $preCompileMerge = isset($bundle['PreCompileMerge']) ? $bundle['PreCompileMerge'] : FALSE;
 
         if ($preCompileMerge) {
 
             $as = new AssetCollection(array(
-                new \TYPO3\Asset\Asset\MergedAsset($bundle["Files"], $filters),
+                new MergedAsset($bundle['Files'], $filters),
             ));
 
-            $name = str_replace(":", ".", $name);
-            return array($this->publish($as->dump(), $name . "." . strtolower($namespace)));
+            $name = str_replace(':', '.', $name);
+            return array($this->publish($as->dump(), $name . '.' . strtolower($namespace)));
 
         } else {
             $assets = array();
-            foreach ($bundle["Files"] as $file) {
-                $assets[] = new \Assetic\Asset\FileAsset($file, $filters);
+            foreach ($bundle['Files'] as $file) {
+                $assets[] = new FileAsset($file, $filters);
             }
             $as = new AssetCollection($assets);
 
@@ -129,35 +125,41 @@ class AssetService {
      * @param $path
      * @return mixed
      */
-    public function getAssetConfiguration($path) {
+    public function getAssetConfiguration($path)
+    {
         return $this->configurationManager->getConfiguration(self::CONFIGURATION_TYPE_ASSETS, $path);
     }
 
-	/**
-	 * @param array $conf
-	 * @return array
-	 */
-	protected function processResourcePath(array $conf) {
+    /**
+     * @param array $conf
+     * @return array
+     */
+    protected function processResourcePath(array $conf)
+    {
 
-		$getFileResource = function(&$file, $key) use (&$conf) {
-			if (substr($file, 0, 11 ) !== 'resource://') {
-				/** @var $resource \TYPO3\Flow\Resource\Resource */
-				$resource = ObjectAccess::getPropertyPath($this->securityContext, str_replace('current.securityContext.', '', $file));
-				if ($resource !== NULL) {
-					$file = 'resource://' . (string)$resource;
-				} else {
-					unset($conf['Files'][$key]);
-				}
-			}
-		};
+        $getFileResource = function (&$file, $key) use (&$conf) {
+            if (substr($file, 0, 11) !== 'resource://') {
+                /** @var $resource \TYPO3\Flow\Resource\Resource */
+                try {
+                    $resource = ObjectAccess::getPropertyPath($this->securityContext, str_replace('current.securityContext.', '', $file));
+                    if ($resource !== NULL) {
+                        $file = 'resource://' . (string)$resource;
+                    } else {
+                        unset($conf['Files'][$key]);
+                    }
+                } catch (DomainNotFoundException $e) {
+                    unset($conf['Files'][$key]);
+                }
+            }
+        };
 
 
-		if (isset($conf['Files']) && is_array($conf['Files'])) {
-			array_walk($conf['Files'], $getFileResource, $conf['Files']);
-		}
+        if (isset($conf['Files']) && is_array($conf['Files'])) {
+            array_walk($conf['Files'], $getFileResource, $conf['Files']);
+        }
 
-		return $conf;
-	}
+        return $conf;
+    }
 
     /**
      * @param $bundle
@@ -165,36 +167,37 @@ class AssetService {
      * @param array $overrideSettings
      * @return array
      */
-    public function getBundle($bundle, $basePath, $overrideSettings = array()) {
+    public function getBundle($bundle, $basePath, $overrideSettings = array())
+    {
         $bundles = $this->configurationManager->getConfiguration(self::CONFIGURATION_TYPE_ASSETS, $basePath);
-        
+
         $conf = $bundles[$bundle];
         $conf = array_merge($conf, $overrideSettings);
 
-		$conf = $this->processResourcePath($conf);
+        $conf = $this->processResourcePath($conf);
 
-		if (isset($conf["Dependencies"])) {
-            foreach ($conf["Dependencies"] as $dependency) {
+        if (isset($conf['Dependencies'])) {
+            foreach ($conf['Dependencies'] as $dependency) {
                 $conf = array_merge_recursive($this->getBundle($dependency, $basePath), $conf);
             }
         }
-        if (isset($conf["Alterations"])) {
-            foreach ($conf["Alterations"] as $key => $alterations) {
+        if (isset($conf['Alterations'])) {
+            foreach ($conf['Alterations'] as $key => $alterations) {
                 if (is_array($alterations)) {
-					foreach ($alterations as $type => $files) {
-                        $position = array_search($key, $conf["Files"]);
+                    foreach ($alterations as $type => $files) {
+                        $position = array_search($key, $conf['Files']);
                         switch ($type) {
                             case 'After':
-                                array_splice($conf["Files"], $position + 1, 0, $files);
+                                array_splice($conf['Files'], $position + 1, 0, $files);
                                 break;
 
                             case 'Before':
-                                array_splice($conf["Files"], $position, 0, $files);
+                                array_splice($conf['Files'], $position, 0, $files);
                                 break;
 
                             case 'Replace':
                             case 'Instead':
-                                array_splice($conf["Files"], $position, 1, $files);
+                                array_splice($conf['Files'], $position, 1, $files);
 
                             default:
                                 # code...
@@ -205,30 +208,33 @@ class AssetService {
             }
         }
 
-		return $conf;
+        return $conf;
     }
 
     /**
      * @param $name
      * @return array
      */
-    public function getCssBundleUris($name) {
-        return $this->compileAssets($name, "Css");
+    public function getCssBundleUris($name)
+    {
+        return $this->compileAssets($name, 'Css');
     }
 
     /**
      * @param $name
      * @return array
      */
-    public function getJsBundleUris($name) {
-        return $this->compileAssets($name, "Js");
+    public function getJsBundleUris($name)
+    {
+        return $this->compileAssets($name, 'Js');
     }
 
     /**
      * @param $filters
      * @return array
      */
-    public function createFiltersIntances($filters) {
+    public function createFiltersIntances($filters)
+    {
         $filterInstances = array();
         foreach ($filters as $filter => $conf) {
             $filterInstances[] = $this->createFilterInstance($filter, $conf);
@@ -241,7 +247,8 @@ class AssetService {
      * @param $arguments
      * @return mixed
      */
-    public function createFilterInstance($filter, $arguments) {
+    public function createFilterInstance($filter, $arguments)
+    {
         switch (count($arguments)) {
             case 0:
                 return $this->objectManager->get($filter);
@@ -267,20 +274,21 @@ class AssetService {
      * @param  string $filename
      * @return string $uri
      */
-    public function publish($content, $filename) {
-        $resource = $this->resourceManager->createResourceFromContent($content, $filename);
-		$this->persistenceManager->whitelistObject($resource);
-		$this->persistenceManager->whitelistObject($resource->getResourcePointer());
-        return $this->resourcePublisher->publishPersistentResource($resource);
+    public function publish($content, $filename)
+    {
+        $resource = $this->resourceManager->importResourceFromContent($content, $filename);
+        $this->persistenceManager->whitelistObject($resource);
+        return $this->resourceManager->getPublicPersistentResourceUri($resource);
     }
 
     /**
      * Add an Bundle to the required bundles
      *
-     * @param string $name   name of the Bundle to add
+     * @param string $name name of the Bundle to add
      * @param string $bundle name of the Bundle to add this Bundle to
      */
-    public function addRequiredJs($name, $bundle = "TYPO3.Asset:Required") {
+    public function addRequiredJs($name, $bundle = 'TYPO3.Asset:Required')
+    {
         if (!isset($this->requiredJs[$bundle]))
             $this->requiredJs[$bundle] = array();
 
@@ -292,14 +300,13 @@ class AssetService {
      * @param  string $bundleName name of the Bundle to get the Configuration from
      * @return array  an array containing the uris
      */
-    public function getRequiredJs($bundleName = "TYPO3.Asset:Required") {
+    public function getRequiredJs($bundleName = 'TYPO3.Asset:Required')
+    {
         $bundle = array();
 
         if (isset($this->requiredJs[$bundleName]))
-            $bundle["Dependencies"] = $this->requiredJs[$bundleName];
+            $bundle['Dependencies'] = $this->requiredJs[$bundleName];
 
-        return $this->compileAssets($bundleName, "Js", $bundle);
+        return $this->compileAssets($bundleName, 'Js', $bundle);
     }
 }
-
-?>
